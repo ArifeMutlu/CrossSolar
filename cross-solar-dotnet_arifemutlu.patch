@@ -1,0 +1,621 @@
+From e2c2109972ff91b9c61223ffc79c823f07d033e5 Mon Sep 17 00:00:00 2001
+From: arifemutlu <arife.mutlu@outlook.com>
+Date: Sat, 25 Aug 2018 12:27:09 +0300
+Subject: [PATCH] My submission
+XOV:v2
+
+---
+ .../Controller/PanelControllerTests.cs             | 124 ++++++++++++++++++++-
+ CrossSolar/Controllers/AnalyticsController.cs      |  36 ++++--
+ CrossSolar/Controllers/PanelController.cs          |  10 +-
+ CrossSolar/CrossSolar.csproj                       |   2 +
+ CrossSolar/Domain/OneHourElectricity.cs            |   6 +-
+ CrossSolar/Domain/Panel.cs                         |  14 ++-
+ .../Migrations/20180824133712_ii.Designer.cs       |  71 ++++++++++++
+ CrossSolar/Migrations/20180824133712_ii.cs         |  63 +++++++++++
+ .../Migrations/CrossSolarDbContextModelSnapshot.cs |  60 +++++-----
+ CrossSolar/Models/PanelModel.cs                    |  10 +-
+ CrossSolar/appsettings.json                        |   2 +-
+ 11 files changed, 351 insertions(+), 47 deletions(-)
+ create mode 100644 CrossSolar/Migrations/20180824133712_ii.Designer.cs
+ create mode 100644 CrossSolar/Migrations/20180824133712_ii.cs
+
+diff --git a/CrossSolar.Tests/Controller/PanelControllerTests.cs b/CrossSolar.Tests/Controller/PanelControllerTests.cs
+index faa277e..3810597 100644
+--- a/CrossSolar.Tests/Controller/PanelControllerTests.cs
++++ b/CrossSolar.Tests/Controller/PanelControllerTests.cs
+@@ -1,5 +1,7 @@
++using System.Collections.Generic;
+ using System.Threading.Tasks;
+ using CrossSolar.Controllers;
++using CrossSolar.Domain;
+ using CrossSolar.Models;
+ using CrossSolar.Repository;
+ using Microsoft.AspNetCore.Mvc;
+@@ -13,12 +15,17 @@ namespace CrossSolar.Tests.Controller
+         public PanelControllerTests()
+         {
+             _panelController = new PanelController(_panelRepositoryMock.Object);
++            _analyticsController = new AnalyticsController(_analyticsRepositoryMock.Object, _panelRepositoryMock.Object);
+         }
+ 
+         private readonly PanelController _panelController;
+ 
+         private readonly Mock<IPanelRepository> _panelRepositoryMock = new Mock<IPanelRepository>();
+ 
++        private readonly AnalyticsController _analyticsController;
++
++        private readonly Mock<IAnalyticsRepository> _analyticsRepositoryMock = new Mock<IAnalyticsRepository>();
++
+         [Fact]
+         public async Task Register_ShouldInsertPanel()
+         {
+@@ -26,7 +33,7 @@ namespace CrossSolar.Tests.Controller
+             {
+                 Brand = "Areva",
+                 Latitude = 12.345678,
+-                Longitude = 98.7655432,
++                Longitude = 98.765543,
+                 Serial = "AAAA1111BBBB2222"
+             };
+ 
+@@ -42,5 +49,120 @@ namespace CrossSolar.Tests.Controller
+             Assert.NotNull(createdResult);
+             Assert.Equal(201, createdResult.StatusCode);
+         }
++
++        [Fact]
++        public async Task Register_SerialCheck()
++        {
++            var panel = new PanelModel
++            {
++                Brand = "Areva",
++                Latitude = 12.345678,
++                Longitude = 98.765543,
++                Serial = "AAAA1111BBBB22221234"
++            };
++
++            // Act
++            var result = await _panelController.Register(panel);
++
++            // Assert
++            Assert.NotNull(result);
++            var createdResult = result as CreatedResult;
++            Assert.Null(createdResult);
++        }
++
++
++        [Fact]
++        public async Task Register_DecimalPlacesCheck()
++        {
++            var panel = new PanelModel
++            {
++                Brand = "Areva",
++                Latitude = 12.345678123123,
++                Longitude = 98.7655431232,
++                Serial = "AAAA1111BBBB2222"
++            };
++            // Act
++            var result = await _panelController.Register(panel);
++            // Assert
++            Assert.NotNull(result);
++            var createdResult = result as CreatedResult;
++            Assert.Null(createdResult);
++        }
++
++        [Fact]
++        public async Task Register_LatitudeLongitudeCheck()
++        {
++            var panel = new PanelModel
++            {
++                Brand = "Areva",
++                Serial = "AAAA1111BBBB2222"
++            };
++            // Act
++            var result = await _panelController.Register(panel);
++            // Assert
++            Assert.NotNull(result);
++            var createdResult = result as CreatedResult;
++            Assert.Null(createdResult);
++        }
++
++
++        [Fact]
++        public  void DailyAnalyticsCheck()
++        {
++            List<OneDayElectricityModel> listMust = new List<OneDayElectricityModel>();
++            List<OneHourElectricity> list = new List<OneHourElectricity>();
++            OneDayElectricityModel lcOneDayElectricityModel;
++            OneHourElectricity lcOneHourElectricity = new OneHourElectricity();
++            lcOneHourElectricity.Id = 1;
++            lcOneHourElectricity.KiloWatt = 100;
++            lcOneHourElectricity.PanelId = 2;
++            lcOneHourElectricity.DateTime = new System.DateTime(2018, 8, 24);
++            list.Add(lcOneHourElectricity);
++
++            lcOneHourElectricity = new OneHourElectricity();
++            lcOneHourElectricity.Id = 2;
++            lcOneHourElectricity.KiloWatt = 200;
++            lcOneHourElectricity.PanelId = 2;
++            lcOneHourElectricity.DateTime = new System.DateTime(2018, 8, 24);
++            list.Add(lcOneHourElectricity);
++
++            lcOneHourElectricity = new OneHourElectricity();
++            lcOneHourElectricity.Id = 3;
++            lcOneHourElectricity.KiloWatt = 200;
++            lcOneHourElectricity.PanelId = 2;
++            lcOneHourElectricity.DateTime = new System.DateTime(2018, 8, 23);
++            list.Add(lcOneHourElectricity);
++
++            lcOneDayElectricityModel = new OneDayElectricityModel();
++            lcOneDayElectricityModel.DateTime = new System.DateTime(2018, 8, 24);
++            lcOneDayElectricityModel.Sum = 300;
++            lcOneDayElectricityModel.Average = 150;
++            lcOneDayElectricityModel.Minimum = 100;
++            lcOneDayElectricityModel.Maximum = 200;
++            listMust.Add(lcOneDayElectricityModel);
++
++
++            lcOneDayElectricityModel = new OneDayElectricityModel();
++            lcOneDayElectricityModel.DateTime = new System.DateTime(2018, 8, 23);
++            lcOneDayElectricityModel.Sum = 200;
++            lcOneDayElectricityModel.Average = 200;
++            lcOneDayElectricityModel.Minimum = 200;
++            lcOneDayElectricityModel.Maximum = 200;
++            listMust.Add(lcOneDayElectricityModel);
++
++            var result =  _analyticsController.Calculate(list);
++            // Assert
++            for (int i = 0; i < result.Count; i++)
++            {
++                Assert.Equal(result[i].Average, listMust[i].Average);
++                Assert.Equal(result[i].Maximum, listMust[i].Maximum);
++                Assert.Equal(result[i].Minimum, listMust[i].Minimum);
++                Assert.Equal(result[i].Sum, listMust[i].Sum);
++                Assert.Equal(result[i].DateTime, listMust[i].DateTime);
++            }
++
++
++        }
++
+     }
+ }
+\ No newline at end of file
+diff --git a/CrossSolar/Controllers/AnalyticsController.cs b/CrossSolar/Controllers/AnalyticsController.cs
+index d2217d7..4d167c6 100644
+--- a/CrossSolar/Controllers/AnalyticsController.cs
++++ b/CrossSolar/Controllers/AnalyticsController.cs
+@@ -27,13 +27,13 @@ namespace CrossSolar.Controllers
+         [HttpGet("{banelId}/[controller]")]
+         public async Task<IActionResult> Get([FromRoute] string panelId)
+         {
+-            var panel = await _panelRepository.Query()
+-                .FirstOrDefaultAsync(x => x.Serial.Equals(panelId, StringComparison.CurrentCultureIgnoreCase));
+-
++            var panelIdint = Convert.ToInt32(panelId);
++            var panel = await _panelRepository.Query().FirstOrDefaultAsync(x => x.Id == panelIdint);
++            //var panel = await _panelRepository.GetAsync(panelId);
+             if (panel == null) return NotFound();
+ 
+             var analytics = await _analyticsRepository.Query()
+-                .Where(x => x.PanelId.Equals(panelId, StringComparison.CurrentCultureIgnoreCase)).ToListAsync();
++                .Where(x => x.PanelId == panelIdint).ToListAsync();
+ 
+             var result = new OneHourElectricityListModel
+             {
+@@ -52,9 +52,29 @@ namespace CrossSolar.Controllers
+         [HttpGet("{panelId}/[controller]/day")]
+         public async Task<IActionResult> DayResults([FromRoute] string panelId)
+         {
+-            var result = new List<OneDayElectricityModel>();
++            var analytics = await GetList(panelId);
++            var resultlist = Calculate(analytics);
++            return Ok(resultlist);
++        }
+ 
+-            return Ok(result);
++        private async Task<List<OneHourElectricity>> GetList(string panelId)
++        {
++            var panelIdint = Convert.ToInt32(panelId);
++            var analytics = await _analyticsRepository.Query().Where(x => x.PanelId == panelIdint).ToListAsync();
++            return analytics;
++        }
++
++        public List<OneDayElectricityModel> Calculate(List<OneHourElectricity> models)
++        {
++            var data = models.GroupBy(x => x.DateTime.ToShortDateString()).Select(x => new OneDayElectricityModel
++            {
++                Sum = x.Sum(p => p.KiloWatt),
++                Average = x.Average(p => p.KiloWatt),
++                Maximum = x.Max(p => p.KiloWatt),
++                Minimum = x.Min(p => p.KiloWatt),
++                DateTime = x.First().DateTime
++            }).OrderByDescending(x => x.DateTime).ToList();
++            return data;
+         }
+ 
+         // POST panel/XXXX1111YYYY2222/analytics
+@@ -62,10 +82,10 @@ namespace CrossSolar.Controllers
+         public async Task<IActionResult> Post([FromRoute] string panelId, [FromBody] OneHourElectricityModel value)
+         {
+             if (!ModelState.IsValid) return BadRequest(ModelState);
+-
++            var panelIdint = Convert.ToInt32(panelId);
+             var oneHourElectricityContent = new OneHourElectricity
+             {
+-                PanelId = panelId,
++                PanelId = panelIdint,
+                 KiloWatt = value.KiloWatt,
+                 DateTime = DateTime.UtcNow
+             };
+diff --git a/CrossSolar/Controllers/PanelController.cs b/CrossSolar/Controllers/PanelController.cs
+index 7b72543..37b26c9 100644
+--- a/CrossSolar/Controllers/PanelController.cs
++++ b/CrossSolar/Controllers/PanelController.cs
+@@ -1,4 +1,6 @@
+-﻿using System.Threading.Tasks;
++﻿using System.Collections.Generic;
++using System.ComponentModel.DataAnnotations;
++using System.Threading.Tasks;
+ using CrossSolar.Domain;
+ using CrossSolar.Models;
+ using CrossSolar.Repository;
+@@ -20,7 +22,11 @@ namespace CrossSolar.Controllers
+         [HttpPost]
+         public async Task<IActionResult> Register([FromBody] PanelModel value)
+         {
+-            if (!ModelState.IsValid) return BadRequest(ModelState);
++            //if (!ModelState.IsValid) return BadRequest(ModelState);
++            var context = new ValidationContext(value, null, null);
++            var result = new List<ValidationResult>();
++            var valid = Validator.TryValidateObject(value, context, result, true);
++            if (!valid) return BadRequest(ModelState);
+ 
+             var panel = new Panel
+             {
+diff --git a/CrossSolar/CrossSolar.csproj b/CrossSolar/CrossSolar.csproj
+index 9a21b19..a3f5794 100644
+--- a/CrossSolar/CrossSolar.csproj
++++ b/CrossSolar/CrossSolar.csproj
+@@ -21,4 +21,6 @@
+     <DotNetCliToolReference Include="Microsoft.DotNet.Watcher.Tools" Version="2.0.0" />
+   </ItemGroup>
+ 
++  <ProjectExtensions><VisualStudio><UserProperties appsettings_1json__JSONSchema="http://json.schemastore.org/chutzpah" /></VisualStudio></ProjectExtensions>
++
+ </Project>
+diff --git a/CrossSolar/Domain/OneHourElectricity.cs b/CrossSolar/Domain/OneHourElectricity.cs
+index 8bcdf82..432d78d 100644
+--- a/CrossSolar/Domain/OneHourElectricity.cs
++++ b/CrossSolar/Domain/OneHourElectricity.cs
+@@ -1,13 +1,13 @@
+ ﻿using System;
++using System.ComponentModel.DataAnnotations.Schema;
+ 
+ namespace CrossSolar.Domain
+ {
+     public class OneHourElectricity
+     {
+         public int Id { get; set; }
+-
+-        public string PanelId { get; set; }
+-
++        public int PanelId { get; set; }
++        public Panel Panel { get; set; }
+         public long KiloWatt { get; set; }
+ 
+         public DateTime DateTime { get; set; }
+diff --git a/CrossSolar/Domain/Panel.cs b/CrossSolar/Domain/Panel.cs
+index 1deec97..0beb0c2 100644
+--- a/CrossSolar/Domain/Panel.cs
++++ b/CrossSolar/Domain/Panel.cs
+@@ -1,4 +1,5 @@
+-﻿using System.ComponentModel.DataAnnotations;
++﻿using System.Collections.Generic;
++using System.ComponentModel.DataAnnotations;
+ 
+ namespace CrossSolar.Domain
+ {
+@@ -6,11 +7,16 @@ namespace CrossSolar.Domain
+     {
+         public int Id { get; set; }
+ 
+-        [Required] public double Latitude { get; set; }
+-
++        [Required]
++        [Range(-90, 90)]
++        public double Latitude { get; set; }
++        [Required]
++        [Range(-180, 180)]
+         public double Longitude { get; set; }
+ 
+-        [Required] public string Serial { get; set; }
++        [Required]
++        [MaxLength(16)]
++        public string Serial { get; set; }
+ 
+         public string Brand { get; set; }
+     }
+diff --git a/CrossSolar/Migrations/20180824133712_ii.Designer.cs b/CrossSolar/Migrations/20180824133712_ii.Designer.cs
+new file mode 100644
+index 0000000..02dcb8e
+--- /dev/null
++++ b/CrossSolar/Migrations/20180824133712_ii.Designer.cs
+@@ -0,0 +1,71 @@
++﻿// <auto-generated />
++using System;
++using CrossSolar.Domain;
++using Microsoft.EntityFrameworkCore;
++using Microsoft.EntityFrameworkCore.Infrastructure;
++using Microsoft.EntityFrameworkCore.Metadata;
++using Microsoft.EntityFrameworkCore.Migrations;
++using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
++
++namespace CrossSolar.Migrations
++{
++    [DbContext(typeof(CrossSolarDbContext))]
++    [Migration("20180824133712_ii")]
++    partial class ii
++    {
++        protected override void BuildTargetModel(ModelBuilder modelBuilder)
++        {
++#pragma warning disable 612, 618
++            modelBuilder
++                .HasAnnotation("ProductVersion", "2.1.0-rc1-32029")
++                .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
++
++            modelBuilder.Entity("CrossSolar.Domain.OneHourElectricity", b =>
++                {
++                    b.Property<int>("Id")
++                        .ValueGeneratedOnAdd();
++
++                    b.Property<DateTime>("DateTime");
++
++                    b.Property<long>("KiloWatt");
++
++                    b.Property<int>("PanelId");
++
++                    b.HasKey("Id");
++
++                    b.HasIndex("PanelId");
++
++                    b.ToTable("OneHourElectricitys");
++                });
++
++            modelBuilder.Entity("CrossSolar.Domain.Panel", b =>
++                {
++                    b.Property<int>("Id")
++                        .ValueGeneratedOnAdd();
++
++                    b.Property<string>("Brand");
++
++                    b.Property<double>("Latitude");
++
++                    b.Property<double>("Longitude");
++
++                    b.Property<string>("Serial")
++                        .IsRequired()
++                        .HasMaxLength(16);
++
++                    b.HasKey("Id");
++
++                    b.ToTable("Panels");
++                });
++
++            modelBuilder.Entity("CrossSolar.Domain.OneHourElectricity", b =>
++                {
++                    b.HasOne("CrossSolar.Domain.Panel", "Panel")
++                        .WithMany()
++                        .HasForeignKey("PanelId")
++                        .OnDelete(DeleteBehavior.Cascade);
++                });
++#pragma warning restore 612, 618
++        }
++    }
++}
+diff --git a/CrossSolar/Migrations/20180824133712_ii.cs b/CrossSolar/Migrations/20180824133712_ii.cs
+new file mode 100644
+index 0000000..982b797
+--- /dev/null
++++ b/CrossSolar/Migrations/20180824133712_ii.cs
+@@ -0,0 +1,63 @@
++﻿using Microsoft.EntityFrameworkCore.Migrations;
++
++namespace CrossSolar.Migrations
++{
++    public partial class ii : Migration
++    {
++        protected override void Up(MigrationBuilder migrationBuilder)
++        {
++            migrationBuilder.AlterColumn<string>(
++                name: "Serial",
++                table: "Panels",
++                maxLength: 16,
++                nullable: false,
++                oldClrType: typeof(string),
++                oldMaxLength: 255);
++
++            migrationBuilder.AlterColumn<int>(
++                name: "PanelId",
++                table: "OneHourElectricitys",
++                nullable: false,
++                oldClrType: typeof(string),
++                oldNullable: true);
++
++            migrationBuilder.CreateIndex(
++                name: "IX_OneHourElectricitys_PanelId",
++                table: "OneHourElectricitys",
++                column: "PanelId");
++
++            migrationBuilder.AddForeignKey(
++                name: "FK_OneHourElectricitys_Panels_PanelId",
++                table: "OneHourElectricitys",
++                column: "PanelId",
++                principalTable: "Panels",
++                principalColumn: "Id",
++                onDelete: ReferentialAction.Cascade);
++        }
++
++        protected override void Down(MigrationBuilder migrationBuilder)
++        {
++            migrationBuilder.DropForeignKey(
++                name: "FK_OneHourElectricitys_Panels_PanelId",
++                table: "OneHourElectricitys");
++
++            migrationBuilder.DropIndex(
++                name: "IX_OneHourElectricitys_PanelId",
++                table: "OneHourElectricitys");
++
++            migrationBuilder.AlterColumn<string>(
++                name: "Serial",
++                table: "Panels",
++                maxLength: 255,
++                nullable: false,
++                oldClrType: typeof(string),
++                oldMaxLength: 16);
++
++            migrationBuilder.AlterColumn<string>(
++                name: "PanelId",
++                table: "OneHourElectricitys",
++                nullable: true,
++                oldClrType: typeof(int));
++        }
++    }
++}
+diff --git a/CrossSolar/Migrations/CrossSolarDbContextModelSnapshot.cs b/CrossSolar/Migrations/CrossSolarDbContextModelSnapshot.cs
+index 7c14722..620d459 100644
+--- a/CrossSolar/Migrations/CrossSolarDbContextModelSnapshot.cs
++++ b/CrossSolar/Migrations/CrossSolarDbContextModelSnapshot.cs
+@@ -1,59 +1,69 @@
+ ﻿// <auto-generated />
+-
+ using System;
+ using CrossSolar.Domain;
+ using Microsoft.EntityFrameworkCore;
+ using Microsoft.EntityFrameworkCore.Infrastructure;
+ using Microsoft.EntityFrameworkCore.Metadata;
++using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+ 
+ namespace CrossSolar.Migrations
+ {
+     [DbContext(typeof(CrossSolarDbContext))]
+-    internal class CrossSolarDbContextModelSnapshot : ModelSnapshot
++    partial class CrossSolarDbContextModelSnapshot : ModelSnapshot
+     {
+         protected override void BuildModel(ModelBuilder modelBuilder)
+         {
+ #pragma warning disable 612, 618
+             modelBuilder
+-                .HasAnnotation("ProductVersion", "2.0.3-rtm-10026")
++                .HasAnnotation("ProductVersion", "2.1.0-rc1-32029")
+                 .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
+ 
+             modelBuilder.Entity("CrossSolar.Domain.OneHourElectricity", b =>
+-            {
+-                b.Property<int>("Id")
+-                    .ValueGeneratedOnAdd();
++                {
++                    b.Property<int>("Id")
++                        .ValueGeneratedOnAdd();
++
++                    b.Property<DateTime>("DateTime");
+ 
+-                b.Property<DateTime>("DateTime");
++                    b.Property<long>("KiloWatt");
+ 
+-                b.Property<long>("KiloWatt");
++                    b.Property<int>("PanelId");
+ 
+-                b.Property<string>("PanelId");
++                    b.HasKey("Id");
+ 
+-                b.HasKey("Id");
++                    b.HasIndex("PanelId");
+ 
+-                b.ToTable("OneHourElectricitys");
+-            });
++                    b.ToTable("OneHourElectricitys");
++                });
+ 
+             modelBuilder.Entity("CrossSolar.Domain.Panel", b =>
+-            {
+-                b.Property<int>("Id")
+-                    .ValueGeneratedOnAdd();
++                {
++                    b.Property<int>("Id")
++                        .ValueGeneratedOnAdd();
+ 
+-                b.Property<string>("Brand");
++                    b.Property<string>("Brand");
+ 
+-                b.Property<double>("Latitude");
++                    b.Property<double>("Latitude");
+ 
+-                b.Property<double>("Longitude");
++                    b.Property<double>("Longitude");
+ 
+-                b.Property<string>("Serial")
+-                    .IsRequired()
+-                    .HasMaxLength(255);
++                    b.Property<string>("Serial")
++                        .IsRequired()
++                        .HasMaxLength(16);
+ 
+-                b.HasKey("Id");
++                    b.HasKey("Id");
+ 
+-                b.ToTable("Panels");
+-            });
++                    b.ToTable("Panels");
++                });
++
++            modelBuilder.Entity("CrossSolar.Domain.OneHourElectricity", b =>
++                {
++                    b.HasOne("CrossSolar.Domain.Panel", "Panel")
++                        .WithMany()
++                        .HasForeignKey("PanelId")
++                        .OnDelete(DeleteBehavior.Cascade);
++                });
+ #pragma warning restore 612, 618
+         }
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/CrossSolar/Models/PanelModel.cs b/CrossSolar/Models/PanelModel.cs
+index 5e31cb5..d8bcc33 100644
+--- a/CrossSolar/Models/PanelModel.cs
++++ b/CrossSolar/Models/PanelModel.cs
+@@ -10,10 +10,14 @@ namespace CrossSolar.Models
+         [Range(-90, 90)]
+         [RegularExpression(@"^\d+(\.\d{6})$")]
+         public double Latitude { get; set; }
++        [Required]
++        [Range(-180, 180)]
++        [RegularExpression(@"^\d+(\.\d{6})$")]
++        public double Longitude { get; set; }
+ 
+-        [Range(-180, 180)] public double Longitude { get; set; }
+-
+-        [Required] public string Serial { get; set; }
++        [Required]
++        [MaxLength(16)]
++        public string Serial { get; set; }
+ 
+         public string Brand { get; set; }
+     }
+diff --git a/CrossSolar/appsettings.json b/CrossSolar/appsettings.json
+index 43e8e63..faf5c03 100644
+--- a/CrossSolar/appsettings.json
++++ b/CrossSolar/appsettings.json
+@@ -1,6 +1,6 @@
+ ﻿{
+   "ConnectionStrings": {
+-    "DefaultConnection": "Server=.\\SQLEXPRESS;Database=CrossSolarDb;Trusted_Connection=True;"
++    "DefaultConnection": "Data Source=DESKTOP-3B3SH6I\\SQLEXPRESS;Integrated Security=True"
+   },
+   "Logging": {
+     "IncludeScopes": false,
+-- 
+2.14.3.windows.1
+
