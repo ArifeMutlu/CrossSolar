@@ -1,4 +1,6 @@
-﻿using System.Threading.Tasks;
+﻿using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.Threading.Tasks;
 using CrossSolar.Domain;
 using CrossSolar.Models;
 using CrossSolar.Repository;
@@ -20,7 +22,11 @@ namespace CrossSolar.Controllers
         [HttpPost]
         public async Task<IActionResult> Register([FromBody] PanelModel value)
         {
-            if (!ModelState.IsValid) return BadRequest(ModelState);
+            //if (!ModelState.IsValid) return BadRequest(ModelState);
+            var context = new ValidationContext(value, null, null);
+            var result = new List<ValidationResult>();
+            var valid = Validator.TryValidateObject(value, context, result, true);
+            if (!valid) return BadRequest(ModelState);
 
             var panel = new Panel
             {

@@ -27,13 +27,13 @@ namespace CrossSolar.Controllers
         [HttpGet("{banelId}/[controller]")]
         public async Task<IActionResult> Get([FromRoute] string panelId)
         {
-            var panel = await _panelRepository.Query()
-                .FirstOrDefaultAsync(x => x.Serial.Equals(panelId, StringComparison.CurrentCultureIgnoreCase));
-
+            var panelIdint = Convert.ToInt32(panelId);
+            var panel = await _panelRepository.Query().FirstOrDefaultAsync(x => x.Id == panelIdint);
+            //var panel = await _panelRepository.GetAsync(panelId);
             if (panel == null) return NotFound();
 
             var analytics = await _analyticsRepository.Query()
-                .Where(x => x.PanelId.Equals(panelId, StringComparison.CurrentCultureIgnoreCase)).ToListAsync();
+                .Where(x => x.PanelId == panelIdint).ToListAsync();
 
             var result = new OneHourElectricityListModel
             {
@@ -52,9 +52,29 @@ namespace CrossSolar.Controllers
         [HttpGet("{panelId}/[controller]/day")]
         public async Task<IActionResult> DayResults([FromRoute] string panelId)
         {
-            var result = new List<OneDayElectricityModel>();
+            var analytics = await GetList(panelId);
+            var resultlist = Calculate(analytics);
+            return Ok(resultlist);
+        }
 
-            return Ok(result);
+        private async Task<List<OneHourElectricity>> GetList(string panelId)
+        {
+            var panelIdint = Convert.ToInt32(panelId);
+            var analytics = await _analyticsRepository.Query().Where(x => x.PanelId == panelIdint).ToListAsync();
+            return analytics;
+        }
+
+        public List<OneDayElectricityModel> Calculate(List<OneHourElectricity> models)
+        {
+            var data = models.GroupBy(x => x.DateTime.ToShortDateString()).Select(x => new OneDayElectricityModel
+            {
+                Sum = x.Sum(p => p.KiloWatt),
+                Average = x.Average(p => p.KiloWatt),
+                Maximum = x.Max(p => p.KiloWatt),
+                Minimum = x.Min(p => p.KiloWatt),
+                DateTime = x.First().DateTime
+            }).OrderByDescending(x => x.DateTime).ToList();
+            return data;
         }
 
         // POST panel/XXXX1111YYYY2222/analytics
@@ -62,10 +82,10 @@ namespace CrossSolar.Controllers
         public async Task<IActionResult> Post([FromRoute] string panelId, [FromBody] OneHourElectricityModel value)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
-
+            var panelIdint = Convert.ToInt32(panelId);
             var oneHourElectricityContent = new OneHourElectricity
             {
-                PanelId = panelId,
+                PanelId = panelIdint,
                 KiloWatt = value.KiloWatt,
                 DateTime = DateTime.UtcNow
             };
